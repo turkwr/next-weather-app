@@ -1,7 +1,11 @@
 "use client"
+
+import dynamic from "next/dynamic"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
+
+// Dynamically import the chart component with no SSR
+const ChartComponent = dynamic(() => import("./chart-component"), { ssr: false })
 
 interface ForecastData {
   list: Array<{
@@ -70,33 +74,14 @@ export default function WeatherCharts({ forecastData }: { forecastData: Forecast
             </CardHeader>
             <CardContent>
               <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 70 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 12 }} />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="temperature"
-                      stroke="#f97316"
-                      name="Temperature"
-                      strokeWidth={2}
-                      dot={{ r: 1 }}
-                      activeDot={{ r: 5 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="feelsLike"
-                      stroke="#3b82f6"
-                      name="Feels Like"
-                      strokeWidth={2}
-                      dot={{ r: 1 }}
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <ChartComponent
+                  data={chartData}
+                  type="temperature"
+                  lines={[
+                    { key: "temperature", name: "Temperature", color: "#f97316" },
+                    { key: "feelsLike", name: "Feels Like", color: "#3b82f6" },
+                  ]}
+                />
               </div>
             </CardContent>
           </Card>
@@ -109,24 +94,12 @@ export default function WeatherCharts({ forecastData }: { forecastData: Forecast
             </CardHeader>
             <CardContent>
               <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 70 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 12 }} />
-                    <YAxis domain={[0, 100]} />
-                    <Tooltip />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="humidity"
-                      stroke="#0ea5e9"
-                      name="Humidity"
-                      strokeWidth={2}
-                      dot={{ r: 1 }}
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <ChartComponent
+                  data={chartData}
+                  type="humidity"
+                  lines={[{ key: "humidity", name: "Humidity", color: "#0ea5e9" }]}
+                  yDomain={[0, 100]}
+                />
               </div>
             </CardContent>
           </Card>
@@ -139,24 +112,11 @@ export default function WeatherCharts({ forecastData }: { forecastData: Forecast
             </CardHeader>
             <CardContent>
               <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 70 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 12 }} />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="windSpeed"
-                      stroke="#10b981"
-                      name="Wind Speed"
-                      strokeWidth={2}
-                      dot={{ r: 1 }}
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <ChartComponent
+                  data={chartData}
+                  type="wind"
+                  lines={[{ key: "windSpeed", name: "Wind Speed", color: "#10b981" }]}
+                />
               </div>
             </CardContent>
           </Card>

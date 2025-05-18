@@ -1,9 +1,7 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
-import { MapContainer, TileLayer, useMapEvents, Marker, Popup, useMap, Circle } from "react-leaflet"
-import "leaflet/dist/leaflet.css"
-import L from "leaflet"
+import dynamic from "next/dynamic"
+import { useState, useRef } from "react"
 import WeatherInfo from "./weather-info"
 import SearchBox from "./search-box"
 import CountdownTimer from "./countdown-timer"
@@ -12,17 +10,15 @@ import WeatherCharts from "./weather-charts"
 import WeatherAlerts from "./weather-alerts"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-// Fix Leaflet icon issues in Next.js
-const defaultIcon = L.icon({
-  iconUrl: "/marker-icon.png",
-  shadowUrl: "/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
+// Dynamically import the map component with no SSR
+const MapComponent = dynamic(() => import("./map-component"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full w-full flex items-center justify-center bg-gray-100">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+    </div>
+  ),
 })
-
-L.Marker.prototype.options.icon = defaultIcon
 
 // Auto-refresh interval in milliseconds (1 minute)
 const AUTO_REFRESH_INTERVAL = 60 * 1000
@@ -92,70 +88,6 @@ interface Alert {
   tags: string[]
 }
 
-interface OneCallData {
-  lat: number
-  lon: number
-  timezone: string
-  timezone_offset: number
-  current: {
-    dt: number
-    sunrise: number
-    sunset: number
-    temp: number
-    feels_like: number
-    pressure: number
-    humidity: number
-    dew_point: number
-    uvi: number
-    clouds: number
-    visibility: number
-    wind_speed: number
-    wind_deg: number
-    weather: Array<{
-      id: number
-      main: string
-      description: string
-      icon: string
-    }>
-  }
-  alerts?: Alert[]
-}
-
-function LocationMarker({
-  selectedLocation,
-  onLocationSelect,
-}: {
-  selectedLocation: Location | null
-  onLocationSelect: (location: Location) => void
-}) {
-  interface LocationMarkerProps {
-    selectedLocation: Location | null
-    onLocationSelect: (location: Location) => void
-  }
-
-  const map = useMapEvents({
-    click: async (e: L.LeafletMouseEvent) => {
-      const { lat, lng } = e.latlng
-      onLocationSelect({ lat, lng })
-    },
-  })
-
-  return null
-}
-
-// Component to fly to a location
-function FlyToLocation({ location }: { location: Location }) {
-  const map = useMap()
-
-  useEffect(() => {
-    if (location) {
-      map.flyTo([location.lat, location.lng], 10)
-    }
-  }, [location, map])
-
-  return null
-}
-
 export default function WeatherMap() {
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null)
   const [searchedLocation, setSearchedLocation] = useState<Location | null>(null)
@@ -169,39 +101,13 @@ export default function WeatherMap() {
   const [lastUpdated, setLastUpdated] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState("current")
 
-  const mapRef = useRef<L.Map | null>(null)
-  const currentLocationRef = useRef<Location | null>(null)
   const dataFetchedRef = useRef<boolean>(false)
   const locationKeyRef = useRef<string | null>(null)
+  const currentLocationRef = useRef<Location | null>(null)
 
   // Default center on world view
   const defaultCenter: [number, number] = [20.0, 0.0]
   const defaultZoom = 2
-
-  // Keep track of current location in ref to avoid stale closures
-  useEffect(() => {
-    currentLocationRef.current = selectedLocation
-  }, [selectedLocation])
-
-  // Fetch weather data when location changes
-  useEffect(() => {
-    if (selectedLocation) {
-      // Generate a unique key for this location
-      const locationKey = `${selectedLocation.lat.toFixed(4)},${selectedLocation.lng.toFixed(4)}`
-
-      // Only fetch if this is a new location
-      if (locationKey !== locationKeyRef.current) {
-        locationKeyRef.current = locationKey
-        dataFetchedRef.current = false
-      }
-
-      // Fetch data only if not already fetched for this location
-      if (!dataFetchedRef.current) {
-        fetchWeatherData(selectedLocation)
-        dataFetchedRef.current = true
-      }
-    }
-  }, [selectedLocation])
 
   const fetchWeatherData = async (location: Location) => {
     // Don't fetch if already loading
@@ -243,7 +149,7 @@ export default function WeatherMap() {
       )
 
       if (oneCallResponse.ok) {
-        const oneCallData: OneCallData = await oneCallResponse.json()
+        const oneCallData = await oneCallResponse.json()
         setAlertsData(oneCallData.alerts || null)
       } else {
         console.warn("Could not fetch alerts data")
@@ -270,9 +176,23 @@ export default function WeatherMap() {
     }
   }
 
-  const handleLocationSelect = useCallback((location: Location) => {
-    setSelectedLocation(location)
-  }, [])
+  const handleLocationSelect = (location: Location) => {
+    currentLocationRef.current = location
+
+    // Generate a unique key for this location
+    const locationKey = `${location.lat.toFixed(4)},${location.lng.toFixed(4)}`
+
+    // Only fetch if this is a new location
+    if (locationKey !== locationKeyRef.current) {
+      locationKeyRef.current = locationKey
+      dataFetchedRef.current = false
+      setSelectedLocation(location)
+      fetchWeatherData(location)
+      dataFetchedRef.current = true
+    } else {
+      setSelectedLocation(location)
+    }
+  }
 
   const handleSearch = async (query: string) => {
     setIsSearching(true)
@@ -303,7 +223,7 @@ export default function WeatherMap() {
       }
 
       setSearchedLocation(newLocation)
-      setSelectedLocation(newLocation)
+      handleLocationSelect(newLocation)
     } catch (err) {
       console.error("Error searching location:", err)
       setSearchError("Location search failed. Please try again later.")
@@ -312,12 +232,13 @@ export default function WeatherMap() {
     }
   }
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = () => {
     if (currentLocationRef.current) {
       dataFetchedRef.current = false // Reset the flag to allow a new fetch
       fetchWeatherData(currentLocationRef.current)
+      dataFetchedRef.current = true
     }
-  }, [])
+  }
 
   // Determine if there are active alerts
   const hasAlerts = alertsData && alertsData.length > 0
@@ -331,39 +252,14 @@ export default function WeatherMap() {
 
       <div className="flex-grow flex flex-col md:flex-row">
         <div className="h-[50vh] md:h-full md:w-1/2 relative">
-          <MapContainer
-            center={defaultCenter}
-            zoom={defaultZoom}
-            style={{ height: "100%", width: "100%" }}
-            ref={mapRef}
-          >
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <LocationMarker selectedLocation={selectedLocation} onLocationSelect={handleLocationSelect} />
-            {selectedLocation && (
-              <>
-                <Marker position={[selectedLocation.lat, selectedLocation.lng]}>
-                  <Popup>
-                    {selectedLocation.name || "Selected Location"}
-                    <br />
-                    Coordinates: {selectedLocation.lat.toFixed(4)}, {selectedLocation.lng.toFixed(4)}
-                    {hasAlerts && (
-                      <div className="mt-2 text-red-500 font-bold">⚠️ Weather alerts active in this area</div>
-                    )}
-                  </Popup>
-                </Marker>
-                {hasAlerts && (
-                  <Circle
-                    center={[selectedLocation.lat, selectedLocation.lng]}
-                    radius={50000}
-                    pathOptions={{ color: "red", fillColor: "red", fillOpacity: 0.1 }}
-                  />
-                )}
-              </>
-            )}
-            {searchedLocation && <FlyToLocation location={searchedLocation} />}
-          </MapContainer>
+          <MapComponent
+            selectedLocation={selectedLocation}
+            searchedLocation={searchedLocation}
+            hasAlerts={hasAlerts}
+            onLocationSelect={handleLocationSelect}
+            defaultCenter={defaultCenter}
+            defaultZoom={defaultZoom}
+          />
         </div>
 
         <div className="md:w-1/2 p-4 bg-white overflow-y-auto">
