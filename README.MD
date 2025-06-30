@@ -2,7 +2,7 @@
 
 1. Clone this repository:
     ```sh
-    git clone https://github.com/24turker/next-weather-app.git
+    git clone https://github.com/turkerwtf/next-weather-app.git
     ```
 2. Install the required packages (use `--force` if needed):
     ```sh
